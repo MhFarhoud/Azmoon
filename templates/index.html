@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سامانه یکپارچه سنجش و ارزیابی مربیان اردویی نوجوانان</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+</head>
+<body>
+    <div id="offline-banner" class="hidden screen-only">
+        ارتباط با سرور قطع شده است. در حال ذخیره محلی. لطفاً اتصال شبکه خود را بررسی کنید.
+    </div>
+
+    <!-- Top App Bar -->
+    <header class="app-topbar screen-only">
+        <div class="topbar-brand">
+            <div class="brand-logos">
+                <span class="brand-logo"><img alt="نشان نخست" src="/static/logo1.svg"></span>
+                <span class="brand-logo"><img alt="نشان دوم" src="/static/logo2.svg"></span>
+            </div>
+            <div class="topbar-titles">
+                <h1>سامانه ارزیابی مربیان اردویی نوجوانان</h1>
+                <p class="subtitle">سنجش شایستگی‌های روان‌شناختی، هیجانی و قضاوت موقعیتی • نسخه ۱.۰</p>
+            </div>
+        </div>
+        <div id="topbar-actions">
+            <button class="secondary" id="exit-role-btn" onclick="app.setRole('')" style="display: none; padding: 7px 14px; font-size: 11px;">
+                خروج از پنل
+            </button>
+        </div>
+    </header>
+
+    <main class="container">
+        <!-- 1. Role Selection Screen -->
+        <div id="role-selection" class="view active-view screen-only">
+            <div class="role-hero">
+                <div class="brand-logos" style="justify-content: center; margin-bottom: 18px;">
+                    <span class="brand-logo" style="height: 64px; width: 64px;"><img alt="نشان نخست" src="/static/logo1.svg" style="width: 52px; height: 52px;"></span>
+                    <span class="brand-logo" style="height: 64px; width: 64px;"><img alt="نشان دوم" src="/static/logo2.svg" style="width: 52px; height: 52px;"></span>
+                </div>
+                <h1>سامانه سنجش و ارزیابی شایستگی‌های مربیان اردو</h1>
+                <p>لطفاً جهت ورود به سامانه، نقش خود را مشخص کنید</p>
+
+                <div class="roles-grid">
+                    <div class="role-card-btn primary" onclick="app.setRole('candidate')">
+                        <span class="role-icon">📝</span>
+                        <h3>متقاضی آزمون</h3>
+                        <span class="role-desc">ورود داوطلب با کد ملی و رمز عبور به آزمون ۸۰ سؤالی</span>
+                        <button class="btn-success" style="width: 100%; margin-top: 8px;">ورود به آزمون</button>
+                    </div>
+
+                    <div class="role-card-btn" onclick="app.requestStaffLogin('receptionist')">
+                        <span class="role-icon">👥</span>
+                        <h3>مسئول پذیرش</h3>
+                        <span class="role-desc">احراز هویت داوطلبان، تحویل رمز عبور و تأیید ورود به آزمون</span>
+                        <button class="secondary" style="width: 100%; margin-top: 8px;">ورود مسئول پذیرش</button>
+                    </div>
+
+                    <div class="role-card-btn" onclick="app.requestStaffLogin('admin')">
+                        <span class="role-icon">👑</span>
+                        <h3>مدیر سیستم و ارزیاب</h3>
+                        <span class="role-desc">مشاهده، بررسی و چاپ کارنامه‌های جامع ۶ صفحه‌ای و تحلیل شاخص‌ها</span>
+                        <button class="secondary" style="width: 100%; margin-top: 8px;">ورود ارزیاب</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. Staff Password Modal -->
+        <div id="staff-login-modal" class="modal hidden screen-only">
+            <div class="modal-content" style="max-width: 400px; text-align: center;">
+                <button class="modal-close" onclick="app.closeStaffLogin()">&times;</button>
+                <h3 id="staff-login-title" style="margin-top: 0; color: var(--navy); font-size: 18px;">ورود پرسنل</h3>
+                <p class="hint">لطفاً رمز عبور دسترسی را وارد کنید:</p>
+                <input type="password" id="staff-password" placeholder="••••" style="width: 100%; padding: 12px; margin: 15px 0; text-align: center; font-size: 20px; letter-spacing: 6px;">
+                <button class="btn-success" style="width: 100%;" onclick="app.submitStaffLogin()">تأیید و ورود</button>
+                <p id="staff-login-error" style="color: #b91c1c; margin-top: 10px; display: none; font-weight: bold;">رمز عبور اشتباه است.</p>
+            </div>
+        </div>
+
+        <!-- 3. Receptionist View -->
+        <div id="receptionist-view" class="view hidden screen-only">
+            <div class="management-container">
+                <div class="management-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <h2 style="margin: 0; color: var(--navy); font-size: 20px;">👥 پنل مسئول پذیرش و ورود متقاضیان</h2>
+                            <p class="hint" style="margin: 4px 0 0;">کنترل هویت داوطلب، اعلام رمز عبور و فعال‌سازی ورود به آزمون</p>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn-success" onclick="app.openAddCandidateModal()">+ ثبت داوطلب جدید</button>
+                            <button class="secondary" onclick="app.setRole('')">خروج</button>
+                        </div>
+                    </div>
+
+                    <div id="receptionist-stats" class="stats-container">
+                        <!-- Stats injected by JS -->
+                    </div>
+
+                    <div style="margin-bottom: 16px;">
+                        <input type="text" id="rec-search" placeholder="🔍 جستجوی نام، نام خانوادگی، کد ملی یا گروه آزمون..." onkeyup="app.filterCandidates('rec-search', 'candidate-list-body')" style="width: 100%; padding: 11px 16px; font-size: 13px;">
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="rtl-table">
+                            <thead>
+                                <tr>
+                                    <th>نام و نام خانوادگی</th>
+                                    <th>کد ملی (نام کاربری)</th>
+                                    <th>رمز عبور آزمون</th>
+                                    <th>گروه / روز</th>
+                                    <th>شماره تماس</th>
+                                    <th>دستگاه</th>
+                                    <th>وضعیت</th>
+                                    <th>عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="candidate-list-body">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. Candidate View -->
+        <div id="candidate-view" class="view hidden">
+            <!-- Candidate Login -->
+            <div id="candidate-login" class="screen-only">
+                <div id="candidatePortal">
+                    <div class="portal-head">
+                        <div class="portal-brand">
+                            <div class="brand-logos">
+                                <span class="brand-logo"><img alt="نشان نخست" src="/static/logo1.svg"></span>
+                                <span class="brand-logo"><img alt="نشان دوم" src="/static/logo2.svg"></span>
+                            </div>
+                            <div class="portal-titles">
+                                <div class="portal-kicker">سامانه یکپارچه سنجش و ارزیابی • نسخه ۱.۰</div>
+                                <h1>ارزیابی مربیان اردویی نوجوانان</h1>
+                                <div class="hint">آزمون اختصاصی داوطلبان • پاسخ‌دهی امن در محیط سامانه</div>
+                            </div>
+                        </div>
+                        <button class="secondary" onclick="app.setRole('')">بازگشت</button>
+                    </div>
+
+                    <div class="portal-hero-note">
+                        <span class="hero-dot"></span>
+                        مسیر ارزیابی شما از اینجا آغاز می‌شود
+                        <span class="hero-divider">/</span>
+                        ۸۰ سؤال در سه بخش (شخصیت، هیجانی-تربیتی و قضاوت موقعیتی)
+                    </div>
+
+                    <div style="max-width: 440px; margin: 30px auto; padding: 25px; border: 1px solid #d4ece7; border-radius: 20px; background: #fff; box-shadow: var(--shadow-sm);">
+                        <h2 style="font-size: 18px; color: var(--navy); margin-top: 0; text-align: center;">ورود به آزمون داوطلب</h2>
+                        <p class="hint" style="text-align: center; margin-bottom: 16px;">کد ملی و رمز عبور ارائه‌شده توسط مسئول پذیرش را وارد فرمایید.</p>
+
+                        <div style="background: #fff8eb; border: 1px solid #fde68a; border-right: 4px solid #d97706; border-radius: 12px; padding: 10px 14px; margin-bottom: 18px; font-size: 11.5px; color: #92400e; line-height: 1.7;">
+                            ⚠️ <b>ضوابط مهم ورود به آزمون:</b><br>
+                            • هر کد ملی منحصراً <b>یک‌بار</b> مجاز به شرکت در آزمون است.<br>
+                            • داوطلب <b>باید در محدوده فرهنگسرای اندیشه باشد</b>؛ در غیر این مکان تقلب محسوب شده و آزمون مسدود خواهد شد.
+                        </div>
+
+                        <div style="margin-bottom: 14px;">
+                            <label>کد ملی ۱۰ رقمی:</label>
+                            <input type="text" id="cand-nid" placeholder="مثال: ۰۰۱۲۳۴۵۶۷۸" maxlength="10" inputmode="numeric" style="width: 100%; letter-spacing: 2px;">
+                        </div>
+
+                        <div style="margin-bottom: 16px;">
+                            <label>رمز عبور:</label>
+                            <input type="password" id="cand-pass" placeholder="رمز عبور پذیرش" style="width: 100%; letter-spacing: 3px;">
+                        </div>
+
+                        <div id="cand-login-error" class="portal-error" style="display: none; font-size: 12px; margin-bottom: 14px;"></div>
+
+                        <button class="btn-success" style="width: 100%; padding: 12px; font-size: 14px;" onclick="app.submitCandidateLogin()">تأیید و ورود به مرحله بعد</button>
+                    </div>
+
+                    <div class="portal-bottom-brand">
+                        آزمون اولیه شایستگی‌های روان‌شناختی و رفتاری مربی اردو <span>●</span> بدون وابستگی به اینترنت
+                    </div>
+                </div>
+            </div>
+
+            <!-- Waiting Room -->
+            <div id="candidate-waiting" class="screen-only hidden">
+                <div id="candidatePortal" style="text-align: center; padding: 60px 25px;">
+                    <div style="font-size: 50px; margin-bottom: 15px;">⏳</div>
+                    <h2 style="color: var(--teal); font-size: 22px; margin: 0 0 10px;">اتاق انتظار ورود به آزمون</h2>
+                    <p style="color: var(--ink); font-size: 14px;">مدارک و هویت شما توسط مسئول پذیرش بررسی می‌شود.</p>
+                    <div class="portal-notice" style="max-width: 500px; margin: 20px auto; text-align: right;">
+                        به محض این‌که مسئول پذیرش ورود شما را تأیید نماید، صفحه آزمون به صورت خودکار برای شما فعال خواهد شد. لطفاً این صفحه را نبندید.
+                    </div>
+                    <button class="secondary" onclick="app.logoutCandidate()" style="margin-top: 15px;">انصراف و خروج</button>
+                </div>
+            </div>
+
+            <!-- Exam Flow -->
+            <div id="candidate-exam" class="screen-only hidden">
+                <div id="candidatePortal">
+                    <div class="portal-head">
+                        <div class="portal-brand">
+                            <div class="brand-logos">
+                                <span class="brand-logo"><img alt="نشان نخست" src="/static/logo1.svg"></span>
+                                <span class="brand-logo"><img alt="نشان دوم" src="/static/logo2.svg"></span>
+                            </div>
+                            <div class="portal-titles">
+                                <div class="portal-kicker">آزمون جامع سنجش شایستگی‌های مربی اردو</div>
+                                <h1 id="exam-candidate-name">ارزیابی داوطلب</h1>
+                                <div class="hint" id="exam-candidate-meta">کد ملی: —</div>
+                            </div>
+                        </div>
+                        <div style="text-align: left;">
+                            <div id="exam-timer" style="font-size: 16px; font-weight: 800; color: #087b8a; background: #e6f6f4; padding: 6px 14px; border-radius: 20px; border: 1px solid #c0e8e2;">زمان باقی‌مانده: ۰۰:۰۰</div>
+                        </div>
+                    </div>
+
+                    <div class="portal-hero-note">
+                        <span class="hero-dot"></span>
+                        <span id="exam-section-badge">بخش آزمون</span>
+                        <span class="hero-divider">/</span>
+                        پاسخ‌دهی دقیق و صادقانه شما معرف سبک تربیتی و شخصیتی شماست.
+                    </div>
+
+                    <!-- Location & Anti-Cheating Alert Banner -->
+                    <div class="location-warning-banner">
+                        <span class="warning-icon">📍⚠️</span>
+                        <div class="warning-content">
+                            <span class="warning-title">هشدار بسیار مهم احراز موقعیت مکانی (محدوده آزمون)</span>
+                            <span class="warning-text">داوطلب گرامی، شما <b>باید در محدوده فرهنگسرای اندیشه باشید</b>. در غیر این مکان، هرگونه پاسخ‌دهی یا خروج از این محدوده <b>مصداق قطعی تقلب</b> تلقی شده و آزمون شما بلافاصله مسدود، باطل و بسته خواهد شد.</span>
+                            <div id="location-live-status" class="location-status-badge">
+                                <span style="font-size: 8px;">🟢</span> در حال پایش لحظه‌ای حضور در فرهنگسرای اندیشه
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="portalBody">
+                        <!-- Questions injected step by step by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Candidate Finished Receipt Screen -->
+            <div id="candidate-finished" class="screen-only hidden">
+                <div id="candidatePortal">
+                    <div class="portal-receipt">
+                        <div style="font-size: 55px; color: #168778; line-height: 1;">✓</div>
+                        <h2>پاسخ‌نامه شما با موفقیت ثبت شد</h2>
+                        <p id="receipt-candidate-info" style="font-size: 14px; margin: 10px 0; color: #355360;">کد داوطلب: <b>—</b></p>
+                        <p class="hint" style="max-width: 520px; margin: 10px auto 25px;">
+                            پاسخ‌های شما ذخیره شد و پرونده ارزیابی برای مسئول ارزیابی ارسال گردید. در این صفحه هیچ نمره یا کارنامه‌ای به داوطلب نمایش داده نمی‌شود.
+                        </p>
+                        <button class="btn-success" onclick="app.finishCandidateSession()" style="padding: 12px 30px;">اتمام آزمون و خروج</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. Admin / Evaluator View -->
+        <div id="admin-view" class="view hidden screen-only">
+            <div class="management-container">
+                <div class="management-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+                        <div>
+                            <h2 style="margin: 0; color: var(--navy); font-size: 20px;">👑 پنل تخصصی ارزیابی و کارنامه مربیان</h2>
+                            <p class="hint" style="margin: 4px 0 0;">بررسی نیمرخ شخصیتی، شایستگی‌های هیجانی و نتایج سناریوهای موقعیتی</p>
+                        </div>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <label style="display: flex; align-items: center; gap: 6px; font-weight: normal; margin: 0;">
+                                زمان آزمون (دقیقه):
+                                <input type="number" id="admin_duration" value="35" style="width: 75px; text-align: center;">
+                            </label>
+                            <button class="secondary" onclick="app.updateSettings()" style="padding: 8px 12px;">اعمال</button>
+                            <button class="secondary" onclick="app.setRole('')">خروج</button>
+                        </div>
+                    </div>
+
+                    <div id="admin-stats" class="stats-container">
+                        <!-- Admin stats injected by JS -->
+                    </div>
+
+                    <div style="margin-bottom: 16px;">
+                        <input type="text" id="admin_search" placeholder="🔍 جستجوی نام، کد ملی یا وضعیت متقاضی..." onkeyup="app.filterCandidates('admin_search', 'admin-candidate-list')" style="width: 100%; padding: 11px 16px; font-size: 13px;">
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="rtl-table">
+                            <thead>
+                                <tr>
+                                    <th>نام و نام خانوادگی</th>
+                                    <th>کد ملی</th>
+                                    <th>پاسخ‌های معتبر</th>
+                                    <th>امتیاز سناریوها (از ۴۵)</th>
+                                    <th>دستگاه</th>
+                                    <th>وضعیت</th>
+                                    <th>عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-candidate-list">
+                                <!-- Admin candidate list -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. 6-Page Comprehensive Report Modal -->
+        <div id="report-modal" class="modal hidden">
+            <div class="modal-content" style="max-width: 230mm; background: #e9f0f3;">
+                <div class="report-modal-header screen-only">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <button class="btn-success" onclick="app.printReport()" style="display: flex; align-items: center; gap: 6px;">
+                            🖨️ چاپ / ذخیره PDF کارنامه (A4)
+                        </button>
+                        <span class="hint">کارنامه ۶ صفحه‌ای استاندارد مصوب</span>
+                    </div>
+                    <button class="modal-close" onclick="app.closeReport()">&times;</button>
+                </div>
+
+                <div id="report-body" class="report-container">
+                    <!-- 6-Page Report Injected Here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. Add Candidate Modal -->
+        <div id="add-candidate-modal" class="modal hidden screen-only">
+            <div class="modal-content" style="max-width: 480px;">
+                <button class="modal-close" onclick="app.closeAddCandidateModal()">&times;</button>
+                <h3 style="margin-top: 0; color: var(--navy); font-size: 18px; text-align: center;">ثبت‌نام متقاضی جدید</h3>
+
+                <div style="display: grid; gap: 12px; margin-top: 15px;">
+                    <div>
+                        <label>نام:</label>
+                        <input type="text" id="new-cand-fname" placeholder="مثال: علی">
+                    </div>
+                    <div>
+                        <label>نام خانوادگی:</label>
+                        <input type="text" id="new-cand-lname" placeholder="مثال: حسینی">
+                    </div>
+                    <div>
+                        <label>کد ملی ۱۰ رقمی (نام کاربری):</label>
+                        <input type="text" id="new-cand-nid" maxlength="10" placeholder="مثال: ۰۰۱۲۳۴۵۶۷۸">
+                    </div>
+                    <div>
+                        <label>رمز عبور ورود به آزمون:</label>
+                        <input type="text" id="new-cand-pass" placeholder="مثال: ۵ رقمی دلخواه یا خودکار">
+                    </div>
+                    <div>
+                        <label>شماره تماس (اختیاری):</label>
+                        <input type="text" id="new-cand-phone" placeholder="مثال: ۰۹۱۲...">
+                    </div>
+                </div>
+
+                <div id="add-cand-error" class="portal-error" style="display: none; font-size: 12px; margin-top: 12px;"></div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="btn-success" style="flex: 1;" onclick="app.submitNewCandidate()">ثبت نهایی</button>
+                    <button class="secondary" style="flex: 1;" onclick="app.closeAddCandidateModal()">انصراف</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

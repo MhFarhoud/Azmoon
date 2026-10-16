@@ -1,0 +1,397 @@
+{
+    "test_title": "English Proficiency Exam for Teaching Candidates",
+    "total_questions": 30,
+    "total_marks": 30,
+    "questions": [
+        {
+            "id": 1,
+            "section": "Grammar & Usage",
+            "question": "By the time the semester ends, we ________ all the assigned material.",
+            "options": {
+                "A": "will cover",
+                "B": "will have covered",
+                "C": "are covering",
+                "D": "have covered"
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "will have covered"
+        },
+        {
+            "id": 2,
+            "section": "Grammar & Usage",
+            "question": "The school principal demanded that the new policy ________ immediately.",
+            "options": {
+                "A": "is implemented",
+                "B": "will be implemented",
+                "C": "be implemented",
+                "D": "was implemented"
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "be implemented"
+        },
+        {
+            "id": 3,
+            "section": "Grammar & Usage",
+            "question": "________ the difficult material, the students performed exceptionally well on the test.",
+            "options": {
+                "A": "Although",
+                "B": "However",
+                "C": "Because",
+                "D": "Despite"
+            },
+            "correct_answer": "D",
+            "correct_answer_text": "Despite"
+        },
+        {
+            "id": 4,
+            "section": "Grammar & Usage",
+            "question": "Had I known about the teacher's meeting, I ________ it.",
+            "options": {
+                "A": "would have attended",
+                "B": "would attend",
+                "C": "will attend",
+                "D": "attended"
+            },
+            "correct_answer": "A",
+            "correct_answer_text": "would have attended"
+        },
+        {
+            "id": 5,
+            "section": "Grammar & Usage",
+            "question": "The professor, along with several of her graduate students, ________ to believe that the recent findings, while significant, ________ further investigation before they can be published.",
+            "options": {
+                "A": "appear; requires",
+                "B": "appears; require",
+                "C": "appear; require",
+                "D": "appears; requires"
+            },
+            "correct_answer": "D",
+            "correct_answer_text": "appears; requires"
+        },
+        {
+            "id": 6,
+            "section": "Grammar & Usage",
+            "question": "She came to live here ________ a month ago.",
+            "options": {
+                "A": "quite",
+                "B": "beyond",
+                "C": "already",
+                "D": "almost"
+            },
+            "correct_answer": "D",
+            "correct_answer_text": "almost"
+        },
+        {
+            "id": 7,
+            "section": "Grammar & Usage",
+            "question": "The company needs to decide ________ and for all what its position is on this point.",
+            "options": {
+                "A": "once",
+                "B": "first",
+                "C": "finally",
+                "D": "well"
+            },
+            "correct_answer": "A",
+            "correct_answer_text": "once"
+        },
+        {
+            "id": 8,
+            "section": "Grammar & Usage",
+            "question": "The student denied ________ during the final exam.",
+            "options": {
+                "A": "to cheat",
+                "B": "cheat",
+                "C": "cheating",
+                "D": "cheated"
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "cheating"
+        },
+        {
+            "id": 9,
+            "section": "Grammar & Usage",
+            "question": "________ her excellent references, she did not get the senior teaching position.",
+            "options": {
+                "A": "In spite",
+                "B": "Even though",
+                "C": "However",
+                "D": "Though"
+            },
+            "correct_answer": "A",
+            "correct_answer_text": "In spite"
+        },
+        {
+            "id": 10,
+            "section": "Grammar & Usage",
+            "question": "You ________ submit the lesson plans by Friday; it is a strict institute policy.",
+            "options": {
+                "A": "could",
+                "B": "might",
+                "C": "should",
+                "D": "must"
+            },
+            "correct_answer": "D",
+            "correct_answer_text": "must"
+        },
+        {
+            "id": 11,
+            "section": "Vocabulary & Word Choice",
+            "question": "The lesson plan was highly ________; every activity logically flowed into the next.",
+            "options": {
+                "A": "chaotic",
+                "B": "ambiguous",
+                "C": "coherent",
+                "D": "tedious"
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "coherent"
+        },
+        {
+            "id": 12,
+            "section": "Vocabulary & Word Choice",
+            "question": "A teacher needs a great deal of ________ when dealing with young or unmotivated learners.",
+            "options": {
+                "A": "patient",
+                "B": "patience",
+                "C": "patients",
+                "D": "patiently"
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "patience"
+        },
+        {
+            "id": 13,
+            "section": "Vocabulary & Word Choice",
+            "question": "The candidate was extremely nervous, but she answered all the interview questions ________.",
+            "options": {
+                "A": "confident",
+                "B": "confide",
+                "C": "confidently",
+                "D": "confidential"
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "confidently"
+        },
+        {
+            "id": 14,
+            "section": "Vocabulary & Word Choice",
+            "question": "The main ________ of the new textbook is its lack of real-world listening activities.",
+            "options": {
+                "A": "criticize",
+                "B": "critical",
+                "C": "criticism",
+                "D": "critic"
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "criticism"
+        },
+        {
+            "id": 15,
+            "section": "Vocabulary & Word Choice",
+            "question": "He has been teaching for over twenty years, so he has a great deal of ________ in the classroom.",
+            "options": {
+                "A": "experience",
+                "B": "experiment",
+                "C": "expertise",
+                "D": "experiments"
+            },
+            "correct_answer": "A",
+            "correct_answer_text": "experience"
+        },
+        {
+            "id": 16,
+            "section": "Vocabulary & Word Choice",
+            "question": "The students' noticeable ________ in their speaking skills was a direct result of the new curriculum.",
+            "options": {
+                "A": "improve",
+                "B": "improving",
+                "C": "improvement",
+                "D": "improved"
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "improvement"
+        },
+        {
+            "id": 17,
+            "section": "Vocabulary & Word Choice",
+            "question": "The lecture was long and ________, and by the end, most of the audience was struggling to stay awake.",
+            "options": {
+                "A": "fascinating",
+                "B": "boring",
+                "C": "engaging",
+                "D": "inspiring"
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "boring"
+        },
+        {
+            "id": 18,
+            "section": "Vocabulary & Word Choice",
+            "question": "Once the plane is in the air, you can ________ your seat belts if you wish.",
+            "options": {
+                "A": "unfasten",
+                "B": "undo",
+                "C": "unlock",
+                "D": "untie"
+            },
+            "correct_answer": "A",
+            "correct_answer_text": "unfasten"
+        },
+        {
+            "id": 19,
+            "section": "Vocabulary & Word Choice",
+            "question": "There are ________ students enrolled in the advanced class this term than last term.",
+            "options": {
+                "A": "less",
+                "B": "fewer",
+                "C": "little",
+                "D": "much"
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "fewer"
+        },
+        {
+            "id": 20,
+            "section": "Vocabulary & Word Choice",
+            "question": "The principal praised the teacher for her unwavering ________ to her students and their success.",
+            "options": {
+                "A": "commit",
+                "B": "commitment",
+                "C": "committee",
+                "D": "committed"
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "commitment"
+        },
+        {
+            "id": 21,
+            "section": "Reading Comprehension",
+            "question": "What is the main idea of the first paragraph?",
+            "options": {
+                "A": "The communicative approach is outdated and should be replaced.",
+                "B": "The communicative approach is often misinterpreted as simply promoting unstructured talk.",
+                "C": "Fluency is the most important part of language learning.",
+                "D": "Teachers should not allow free conversation in the classroom."
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "The communicative approach is often misinterpreted as simply promoting unstructured talk."
+        },
+        {
+            "id": 22,
+            "section": "Reading Comprehension",
+            "question": "The word \"dominant\" in paragraph 1 is closest in meaning to:",
+            "options": {
+                "A": "controversial",
+                "B": "secondary",
+                "C": "leading",
+                "D": "outdated"
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "leading"
+        },
+        {
+            "id": 23,
+            "section": "Reading Comprehension",
+            "question": "How many components of \"communicative competence\" are explicitly listed in the passage?",
+            "options": {
+                "A": "Two",
+                "B": "Three",
+                "C": "Four",
+                "D": "Five"
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "Four"
+        },
+        {
+            "id": 24,
+            "section": "Reading Comprehension",
+            "question": "According to the passage, what is \"sociolinguistic competence\"?",
+            "options": {
+                "A": "The ability to form grammatically correct sentences.",
+                "B": "The ability to use language appropriately in different social situations.",
+                "C": "The ability to connect sentences into a larger text.",
+                "D": "The ability to overcome a lack of vocabulary."
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "The ability to use language appropriately in different social situations."
+        },
+        {
+            "id": 25,
+            "section": "Reading Comprehension",
+            "question": "According to the passage, a well-designed communicative activity must include:",
+            "options": {
+                "A": "A discussion about the students' personal lives.",
+                "B": "A free-flowing conversation with no rules.",
+                "C": "A clear goal and a reason to communicate.",
+                "D": "A focus on grammatical drills."
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "A clear goal and a reason to communicate."
+        },
+        {
+            "id": 26,
+            "section": "Reading Comprehension",
+            "question": "The word \"former\" in paragraph 3 refers to:",
+            "options": {
+                "A": "A discussion about favorite hobbies.",
+                "B": "The teacher's role in the classroom.",
+                "C": "The pair-work activity with the timetable and map.",
+                "D": "The \"free-for-all\" activity."
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "The pair-work activity with the timetable and map."
+        },
+        {
+            "id": 27,
+            "section": "Reading Comprehension",
+            "question": "Why does the author believe the \"bus timetable and map\" activity is more effective than a hobby discussion?",
+            "options": {
+                "A": "It is more fun for the students.",
+                "B": "It forces students to interact to solve a specific problem.",
+                "C": "It produces more spoken language overall.",
+                "D": "It focuses exclusively on grammatical accuracy."
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "It forces students to interact to solve a specific problem."
+        },
+        {
+            "id": 28,
+            "section": "Reading Comprehension",
+            "question": "The phrase \"free-for-all\" in paragraph 3 most likely means a situation that is:",
+            "options": {
+                "A": "highly structured and controlled.",
+                "B": "free of charge.",
+                "C": "disorganized and without clear rules.",
+                "D": "suitable for all levels."
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "disorganized and without clear rules."
+        },
+        {
+            "id": 29,
+            "section": "Reading Comprehension",
+            "question": "According to the final paragraph, what is the primary role of a teacher in a communicative classroom?",
+            "options": {
+                "A": "To be the main speaker and model of the language.",
+                "B": "To strictly correct every error students make.",
+                "C": "To guide and support the students' communication.",
+                "D": "To remove all challenges from the learning process."
+            },
+            "correct_answer": "C",
+            "correct_answer_text": "To guide and support the students' communication."
+        },
+        {
+            "id": 30,
+            "section": "Reading Comprehension",
+            "question": "What is the author's overall tone in the passage?",
+            "options": {
+                "A": "Critical and dismissive of modern teaching.",
+                "B": "Informative and explanatory.",
+                "C": "Humorous and sarcastic.",
+                "D": "Uncertain and questioning."
+            },
+            "correct_answer": "B",
+            "correct_answer_text": "Informative and explanatory"
+        }
+    ]
+}

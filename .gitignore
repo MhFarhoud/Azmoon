@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+.DS_Store
+records/
+data/
+settings.json
+.source-hashes.json
+*.xlsx
+*.csv
+*_backup.json

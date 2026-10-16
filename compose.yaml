@@ -1,0 +1,14 @@
+services:
+  exam:
+    build: .
+    restart: unless-stopped
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      STAFF_PASSWORD: ${STAFF_PASSWORD:?Set STAFF_PASSWORD in .env}
+      DATA_DIR: /data
+    ports:
+      - "127.0.0.1:${PORT:-5001}:5001"
+    volumes:
+      - exam_data:/data
+volumes:
+  exam_data:
