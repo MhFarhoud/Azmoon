@@ -5,3 +5,5 @@ __pycache__
 records
 data
 .source-hashes.json
+windows-local.json
+start.ps1
