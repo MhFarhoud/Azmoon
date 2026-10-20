@@ -6,7 +6,7 @@ import json
 import uuid
 import threading
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response
 from flask_socketio import SocketIO, emit, join_room
 from flask_cors import CORS
 import pandas as pd
@@ -40,7 +40,7 @@ admin_settings = {'exam_duration_minutes': 35}
 def load_data():
     global candidates
     base_dir = os.path.dirname(__file__)
-    
+
     # Load Settings
     try:
         with open(os.path.join(DATA_DIR, 'settings.json'), 'r') as f:
@@ -74,7 +74,10 @@ def load_data():
                     'certifications_score': 80,
                     'appearance_score': 80,
                     'teaching_spirit_score': 80,
-                    'results': None
+                    'results': None,
+                    'competency_status': 'offline',
+                    'competency_results': None,
+                    'notes': ''
                 }
     except Exception as e:
         print("Error loading candidates:", e)
@@ -98,10 +101,22 @@ def load_data():
                                 candidates[cand_id]['results'] = res
                                 candidates[cand_id]['status'] = 'finished'
                         except Exception as e:
-                            print(f"Error loading result for {cand_id}: e")
+                            print(f"Error loading result for {cand_id}: {e}")
+
+                    # Restore Competency Results
+                    comp_files = glob.glob(os.path.join(cand_dir, "competency_results_*.json"))
+                    if comp_files:
+                        latest_comp = sorted(comp_files)[-1]
+                        try:
+                            with open(latest_comp, 'r', encoding='utf-8') as f:
+                                cres = json.load(f)
+                                candidates[cand_id]['competency_results'] = cres
+                                candidates[cand_id]['competency_status'] = 'finished'
+                        except Exception as e:
+                            print(f"Error loading competency result for {cand_id}: {e}")
 
     # Load Exam Configuration (80 Items, 15 Scales, Descriptions)
-    global exam_config, exam_items, exam_scales, exam_desc
+    global exam_config, exam_items, exam_scales, exam_desc, competency_config
     exam_config = {}
     exam_items = []
     exam_scales = []
@@ -115,7 +130,15 @@ def load_data():
     except Exception as e:
         print("Error loading exam_config.json:", e)
 
-    return {"items": exam_items, "scales": exam_scales, "desc": exam_desc}
+    # Load Competency Exam Configuration (56 Items: 40 Category + 16 SJT)
+    competency_config = {}
+    try:
+        with open(os.path.join(base_dir, 'competency_exam_config.json'), 'r', encoding='utf-8') as f:
+            competency_config = json.load(f)
+    except Exception as e:
+        print("Error loading competency_exam_config.json:", e)
+
+    return {"items": exam_items, "scales": exam_scales, "desc": exam_desc, "competency": competency_config}
 
 exam_data = load_data()
 
@@ -138,7 +161,7 @@ def candidate_login():
     username = normalize_digits(str(data.get('username')))
     password = normalize_digits(str(data.get('password')))
     device_info = data.get('device_info', '')
-    
+
     cand = candidates.get(username)
     if cand and cand['password'] == password:
         # Check if candidate has already finished the exam
@@ -147,7 +170,7 @@ def candidate_login():
                 "success": False,
                 "error": "این کد ملی قبلاً در آزمون شرکت کرده و پاسخ‌نامه آن ثبت نهایی شده است. هر داوطلب فقط یک بار مجاز به شرکت در آزمون می‌باشد."
             }), 403
-            
+
         # Save device info on login
         if device_info:
             if 'Windows' in device_info: cand['device_info'] = 'Windows'
@@ -175,13 +198,13 @@ def add_candidate():
     nid = normalize_digits(str(data.get('national_id', '')))
     username = nid
     password = normalize_digits(str(data.get('password', '')))
-    
+
     if not fname or not lname or not nid or not password:
         return jsonify({"success": False, "error": "اطلاعات ناقص است."}), 400
-        
+
     if username in candidates:
         return jsonify({"success": False, "error": "این کد ملی قبلا ثبت شده است."}), 400
-        
+
     new_cand = {
         "first_name": fname,
         "last_name": lname,
@@ -196,7 +219,7 @@ def add_candidate():
         "results": None
     }
     candidates[username] = new_cand
-    
+
     # Save to JSON
     try:
         db_path = CANDIDATES_FILE
@@ -218,7 +241,7 @@ def add_candidate():
                 json.dump(db_data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         print("Error saving to DB:", e)
-        
+
     socketio.emit('candidate_list_update', get_all_candidates())
     return jsonify({"success": True})
 
@@ -236,28 +259,28 @@ def submit_exam():
     data = request.json
     cand_id = data.get('candidate_id')
     answers = data.get('answers', {})
-    
+
     if cand_id not in candidates:
         return jsonify({"error": "Candidate not found"}), 404
-        
+
     candidate = candidates[cand_id]
     if candidate.get('status') == 'finished' or candidate.get('results') is not None:
         return jsonify({
             "success": False,
             "error": "آزمون این کد ملی قبلاً ثبت نهایی شده است و امکان ثبت مجدد وجود ندارد."
         }), 400
-        
+
     candidate['status'] = 'finished'
-    
+
     # Calculate Scores based on 80 items and 15 scales
     results = calculate_eval_results(answers)
     candidate['results'] = results
-    
+
     # Run file saving in a separate thread to avoid blocking
     threading.Thread(target=save_candidate_records, args=(candidate, answers, results)).start()
-    
+
     socketio.emit('candidate_list_update', get_all_candidates())
-    
+
     return jsonify({"success": True, "results": results})
 
 def calculate_eval_results(answers):
@@ -268,13 +291,13 @@ def calculate_eval_results(answers):
     pts = {0: 0, 1: 0, 3: 0}
     miss = []
     flags = []
-    
+
     for i in range(80):
         if i >= len(exam_items): break
         q = exam_items[i]
         ans = answers[i] if isinstance(answers, list) else answers.get(str(i), answers.get(i, ''))
         ans_str = str(ans).strip()
-        
+
         if i < 65:
             if ans_str in ['1', '2', '3', '4', '5']:
                 self_valid += 1
@@ -301,7 +324,7 @@ def calculate_eval_results(answers):
                     })
             else:
                 miss.append(q['n'])
-                
+
     means = {}
     for s in exam_scales:
         target = len([q for q in exam_items[:65] if q['scale'] == s and not q.get('unscored')])
@@ -310,14 +333,14 @@ def calculate_eval_results(answers):
             means[s] = round(sum(scale_scores) / target, 2)
         else:
             means[s] = None
-            
+
     big = [k for k, v in means.items() if v is not None and v >= 4.1]
     less = [k for k, v in means.items() if v is not None and v <= 3.25]
     big.sort(key=lambda k: means[k], reverse=True)
     less.sort(key=lambda k: means[k])
-    
+
     interview = less[:3] if less else ['قاطعیت و مرزها', 'مسئولیت و حفاظت']
-    
+
     return {
         'means': means,
         'self_valid': self_valid,
@@ -334,17 +357,17 @@ def calculate_eval_results(answers):
 def save_candidate_records(candidate, answers, results):
     cand_dir = os.path.join(RECORDS_DIR, f"{candidate['id']}_{candidate['first_name']}_{candidate['last_name']}")
     os.makedirs(cand_dir, exist_ok=True)
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     # 1. Raw answers JSON
     with open(os.path.join(cand_dir, f"raw_answers_{timestamp}.json"), 'w', encoding='utf-8') as f:
         json.dump(answers, f, ensure_ascii=False, indent=4)
-        
+
     # 2. Results JSON
     with open(os.path.join(cand_dir, f"results_{timestamp}.json"), 'w', encoding='utf-8') as f:
         json.dump(results, f, ensure_ascii=False, indent=4)
-        
+
     # 3. Exam Log
     with open(os.path.join(cand_dir, f"exam_log_{timestamp}.txt"), 'w', encoding='utf-8') as f:
         f.write(f"Exam Evaluation Log for Candidate: {candidate['id']} - {candidate['first_name']} {candidate['last_name']}\n")
@@ -352,7 +375,7 @@ def save_candidate_records(candidate, answers, results):
         for i, q in enumerate(exam_items):
             ans = answers[i] if isinstance(answers, list) else answers.get(str(i), answers.get(i, 'بی‌پاسخ'))
             f.write(f"Q{q['n']} [{q['scale']}]: {q['text']}\n  Answer: {ans}\n\n")
-            
+
     # 4. Excel Report
     try:
         data_rows = []
@@ -365,6 +388,194 @@ def save_candidate_records(candidate, answers, results):
     except Exception as e:
         print("Excel report error:", e)
 
+def calculate_competency_results(answers):
+    likert_ans = answers.get("likert", [])
+    if isinstance(likert_ans, dict):
+        likert_ans = [likert_ans.get(str(i), likert_ans.get(i)) for i in range(40)]
+    sjt_ans = answers.get("sjt", [])
+    if isinstance(sjt_ans, dict):
+        sjt_ans = [sjt_ans.get(str(i), sjt_ans.get(i)) for i in range(16)]
+
+    areas = []
+    cats = competency_config.get("cats", [])
+    for i, c in enumerate(cats):
+        pts = []
+        for j, q in enumerate(c.get("questions", [])):
+            idx = i * 5 + j
+            ans_val = likert_ans[idx] if idx < len(likert_ans) else None
+            if ans_val is not None and str(ans_val).isdigit():
+                opt_idx = int(ans_val)
+                pt = q["points"][opt_idx] if 0 <= opt_idx < len(q.get("points", [])) else 0
+            else:
+                pt = 0
+            pts.append(pt)
+        cat_sum = sum(pts)
+        area_val = round((cat_sum / 15.0) * 100.0, 1)
+        areas.append({
+            "name": c.get("name"),
+            "sum_points": cat_sum,
+            "max_points": 15,
+            "value": area_val
+        })
+
+    sjt_pts = []
+    situations = competency_config.get("situations", [])
+    for k, q in enumerate(situations):
+        ans_val = sjt_ans[k] if k < len(sjt_ans) else None
+        if ans_val is not None and str(ans_val).isdigit():
+            opt_idx = int(ans_val)
+            pt = q["points"][opt_idx] if 0 <= opt_idx < len(q.get("points", [])) else 0
+        else:
+            pt = 0
+        sjt_pts.append(pt)
+
+    sjt_sum = sum(sjt_pts)
+    sjt_val = round((sjt_sum / 48.0) * 100.0, 1) if situations else 0
+    self_val = round(sum(a["value"] for a in areas) / 8.0, 1) if areas else 0
+    total_val = round(self_val * 0.7 + sjt_val * 0.3, 1)
+
+    return {
+        "areas": areas,
+        "sjt": sjt_val,
+        "sjt_sum": sjt_sum,
+        "sjt_max": 48,
+        "self": self_val,
+        "total": total_val
+    }
+
+def save_competency_records(candidate, answers, results):
+    cand_dir = os.path.join(RECORDS_DIR, f"{candidate['id']}_{candidate['first_name']}_{candidate['last_name']}")
+    os.makedirs(cand_dir, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    with open(os.path.join(cand_dir, f"competency_answers_{timestamp}.json"), 'w', encoding='utf-8') as f:
+        json.dump(answers, f, ensure_ascii=False, indent=4)
+
+    with open(os.path.join(cand_dir, f"competency_results_{timestamp}.json"), 'w', encoding='utf-8') as f:
+        json.dump(results, f, ensure_ascii=False, indent=4)
+
+@app.route('/api/competency/questions', methods=['GET'])
+def get_competency_questions():
+    return jsonify(competency_config)
+
+@app.route('/api/competency/login', methods=['POST'])
+def competency_candidate_login():
+    data = request.json
+    username = normalize_digits(str(data.get('username')))
+    password = normalize_digits(str(data.get('password')))
+    device_info = data.get('device_info', '')
+
+    cand = candidates.get(username)
+    if not cand:
+        return jsonify({"success": False, "error": "داوطلب با این کد ملی در سامانه ثبت نشده است."}), 404
+
+    if password and cand.get('password') != password:
+        return jsonify({"success": False, "error": "رمز عبور وارد شده اشتباه است."}), 401
+
+    if cand.get('competency_status') == 'finished' or cand.get('competency_results') is not None:
+        return jsonify({
+            "success": False,
+            "error": "این کد ملی قبلاً در آزمون شایستگی شرکت نموده و پاسخ‌نامه آن ثبت نهایی شده است. هر داوطلب فقط یک بار مجاز به شرکت در آزمون می‌باشد."
+        }), 403
+
+    if device_info:
+        if 'Windows' in device_info: cand['device_info'] = 'Windows'
+        elif 'Macintosh' in device_info: cand['device_info'] = 'Mac'
+        elif 'iPhone' in device_info: cand['device_info'] = 'iPhone'
+        elif 'Android' in device_info: cand['device_info'] = 'Android'
+        elif 'Linux' in device_info: cand['device_info'] = 'Linux'
+
+    return jsonify({
+        "success": True,
+        "candidate": {
+            "id": cand['id'],
+            "name": cand['first_name'] + ' ' + cand['last_name'],
+            "first_name": cand['first_name'],
+            "last_name": cand['last_name'],
+            "national_id": cand['national_id'],
+            "role": "نیروی فرهنگی و اجتماعی"
+        }
+    })
+
+@app.route('/api/competency/submit_exam', methods=['POST'])
+def submit_competency_exam():
+    data = request.json
+    cand_id = data.get('candidate_id')
+    answers = data.get('answers', {})
+
+    if cand_id not in candidates:
+        return jsonify({"error": "Candidate not found"}), 404
+
+    candidate = candidates[cand_id]
+    if candidate.get('competency_status') == 'finished' or candidate.get('competency_results') is not None:
+        return jsonify({
+            "success": False,
+            "error": "آزمون شایستگی این کد ملی قبلاً ثبت نهایی شده است و امکان ثبت مجدد وجود ندارد."
+        }), 400
+
+    candidate['competency_status'] = 'finished'
+    results = calculate_competency_results(answers)
+    candidate['competency_results'] = results
+
+    threading.Thread(target=save_competency_records, args=(candidate, answers, results)).start()
+    socketio.emit('candidate_list_update', get_all_candidates())
+
+    return jsonify({"success": True, "results": results})
+
+@app.route('/api/candidate_notes', methods=['POST'])
+def save_candidate_notes():
+    data = request.json
+    cand_id = data.get('candidate_id')
+    notes = data.get('notes', '')
+    if cand_id in candidates:
+        candidates[cand_id]['notes'] = notes
+        socketio.emit('candidate_list_update', get_all_candidates())
+        return jsonify({"success": True})
+    return jsonify({"error": "Candidate not found"}), 404
+
+@app.route('/api/competency/export_csv', methods=['GET'])
+def export_competency_csv():
+    import io, csv
+    output = io.StringIO()
+    output.write('\ufeff')  # UTF-8 BOM
+    writer = csv.writer(output)
+
+    cat_names = [c['name'] for c in competency_config.get('cats', [])]
+    headers = ['کد ملی', 'نام و نام خانوادگی', 'گروه / روز', 'وضعیت آزمون شایستگی', *cat_names, 'قضاوت موقعیتی (درصد)', 'شاخص کل شایستگی (درصد)', 'یادداشت‌های ارزیاب']
+    writer.writerow(headers)
+
+    for c in candidates.values():
+        cres = c.get('competency_results')
+        if cres:
+            area_dict = {a['name']: a['value'] for a in cres.get('areas', [])}
+            area_vals = [area_dict.get(n, '') for n in cat_names]
+            sjt_v = cres.get('sjt', '')
+            tot_v = cres.get('total', '')
+            status_text = 'پایان‌یافته'
+        else:
+            area_vals = ['' for _ in cat_names]
+            sjt_v = ''
+            tot_v = ''
+            status_text = 'شرکت نکرده'
+
+        row = [
+            c.get('national_id', c.get('id')),
+            f"{c.get('first_name', '')} {c.get('last_name', '')}",
+            c.get('day', ''),
+            status_text,
+            *area_vals,
+            sjt_v,
+            tot_v,
+            c.get('notes', '')
+        ]
+        writer.writerow(row)
+
+    output.seek(0)
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=competency_evaluations.csv"}
+    )
 
 # --- WebSockets ---
 
@@ -402,6 +613,23 @@ def on_reset_exam(data):
                 except:
                     pass
         socketio.emit('force_logout', {}, room=cand_id)
+        socketio.emit('candidate_list_update', get_all_candidates())
+
+@socketio.on('reset_competency_exam')
+def on_reset_competency_exam(data):
+    cand_id = data.get('candidate_id')
+    if cand_id in candidates:
+        candidates[cand_id]['competency_status'] = 'offline'
+        candidates[cand_id]['competency_results'] = None
+        import glob
+        cand_pattern = os.path.join(RECORDS_DIR, f"{cand_id}_*")
+        for cdir in glob.glob(cand_pattern):
+            for rf in glob.glob(os.path.join(cdir, "competency_results_*.json")):
+                try:
+                    os.rename(rf, rf + ".archived")
+                except:
+                    pass
+        socketio.emit('force_logout_competency', {}, room=cand_id)
         socketio.emit('candidate_list_update', get_all_candidates())
 
 @socketio.on('update_settings')

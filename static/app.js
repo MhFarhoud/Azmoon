@@ -69,7 +69,7 @@ const app = {
     setRole: function(role) {
         currentRole = role;
         document.querySelectorAll('.view').forEach(el => el.classList.add('hidden'));
-        
+
         const exitBtn = document.getElementById('exit-role-btn');
         if (exitBtn) {
             exitBtn.style.display = (role ? 'inline-block' : 'none');
@@ -81,6 +81,9 @@ const app = {
         } else if (role === 'candidate') {
             document.getElementById('candidate-view').classList.remove('hidden');
             this.checkLocalCandidateState();
+        } else if (role === 'competency-candidate') {
+            document.getElementById('competency-view').classList.remove('hidden');
+            this.checkLocalCompetencyState();
         } else if (role === 'admin') {
             document.getElementById('admin-view').classList.remove('hidden');
             this.fetchCandidates();
@@ -163,7 +166,7 @@ const app = {
                 errorEl.style.display = 'none';
                 currentCandidateId = data.candidate.id;
                 currentCandidate = data.candidate;
-                
+
                 let localData = JSON.parse(localStorage.getItem('shahr_candidate') || '{}');
                 if (localData.id !== currentCandidateId) {
                     localData = {
@@ -175,7 +178,7 @@ const app = {
                     };
                     localStorage.setItem('shahr_candidate', JSON.stringify(localData));
                 }
-                
+
                 this.joinWaitingRoom(currentCandidateId);
             } else {
                 errorEl.innerText = data.error || 'نام کاربری یا رمز عبور اشتباه است.';
@@ -257,11 +260,11 @@ const app = {
     monitorLocation: function() {
         const statusEl = document.getElementById('location-live-status');
         if (!statusEl) return;
-        
+
         // Coordinates for Farhangsaraye Andisheh (Tehran)
         const targetLat = 35.7412;
         const targetLon = 51.4428;
-        
+
         if ('geolocation' in navigator) {
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
@@ -276,7 +279,7 @@ const app = {
                               Math.sin(dLon/2) * Math.sin(dLon/2);
                     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
                     const distKm = R * c;
-                    
+
                     if (distKm <= 12) { // Within Farhangsara / Tehran area
                         statusEl.className = 'location-status-badge';
                         statusEl.innerHTML = '<span style="font-size: 8px;">🟢</span> موقعیت مکانی تأیید شد: در محدوده مجاز فرهنگسرای اندیشه';
@@ -505,6 +508,7 @@ const app = {
     },
 
     renderCandidateList: function(cList) {
+        this.lastCandidateList = cList;
         this.updateStats(cList);
         const tbody = document.getElementById('candidate-list-body');
         const adminTbody = document.getElementById('admin-candidate-list');
@@ -526,7 +530,10 @@ const app = {
                 if (c.status === 'waiting') {
                     actionBtn = `<button class="btn-success" style="padding: 6px 12px; font-size: 11px;" onclick="app.approveCandidate('${c.id}')">تأیید ورود ✓</button>`;
                 }
-                actionBtn += ` <button class="btn-danger" style="padding: 6px 10px; font-size: 11px;" onclick="app.resetExam('${c.id}')">ریست</button>`;
+                actionBtn += ` <button class="btn-danger" style="padding: 6px 10px; font-size: 11px;" onclick="app.resetExam('${c.id}')">ریست مربیان</button>`;
+                if (c.competency_status === 'finished') {
+                    actionBtn += ` <button class="btn-danger" style="padding: 6px 10px; font-size: 11px; background: #c2410c;" onclick="app.resetCompetencyExam('${c.id}')">ریست شایستگی</button>`;
+                }
 
                 const groupInfo = `${c.day || '—'} ${c.exam_group ? '(گروه ' + c.exam_group + ')' : ''}`;
 
@@ -537,7 +544,10 @@ const app = {
                     <td><span style="font-size: 11px; color: var(--muted);">${groupInfo}</span></td>
                     <td><span style="direction: ltr; display: inline-block;">${esc(c.phone || '—')}</span></td>
                     <td><span style="font-size: 11px; color: var(--muted);">${esc(c.device_info || 'نامشخص')}</span></td>
-                    <td><span class="status status-${c.status}">${statusMap[c.status] || c.status}</span></td>
+                    <td>
+                        <span class="status status-${c.status}">${statusMap[c.status] || c.status}</span>
+                        ${c.competency_status === 'finished' ? '<span class="status status-finished" style="margin-top:2px;background:#e0f2fe;color:#0369a1;">شایستگی: پایان</span>' : ''}
+                    </td>
                     <td>${actionBtn}</td>
                 </tr>`;
                 tbody.innerHTML += tr;
@@ -545,24 +555,45 @@ const app = {
 
             // Admin Table Row
             if (adminTbody) {
-                let sjtDisplay = '—';
-                let validCount = '—';
-                let viewBtn = '<span style="color: var(--muted);">—</span>';
-
+                // Camp Leader Status
+                let leaderDisplay = '';
                 if (c.results) {
-                    sjtDisplay = `<b>${c.results.sjt_total || 0}</b> / ۴۵`;
-                    validCount = `${c.results.self_valid || 0} خودگزارشی | ${c.results.sjt_valid || 0} سناریو`;
-                    viewBtn = `<button class="btn-success" style="padding: 6px 12px; font-size: 11px;" onclick="app.viewReport('${c.id}')">📄 مشاهده کارنامه جامع</button>`;
+                    leaderDisplay = `<span class="status status-finished">پایان‌یافته</span>
+                    <div style="font-size: 11px; color: #087b8a; margin-top: 3px; font-weight: bold;">سناریو: ${c.results.sjt_total || 0}/45</div>`;
+                } else {
+                    leaderDisplay = `<span class="status status-${c.status}">${statusMap[c.status] || c.status}</span>`;
                 }
+
+                // Competency Exam Status
+                let compDisplay = '';
+                if (c.competency_results) {
+                    compDisplay = `<span class="status status-finished" style="background: #e0f2fe; color: #0369a1;">پایان‌یافته</span>
+                    <div style="font-size: 11px; color: #087e83; margin-top: 3px; font-weight: bold;">شاخص کل: ${c.competency_results.total}%</div>`;
+                } else if (c.competency_status === 'finished') {
+                    compDisplay = `<span class="status status-finished" style="background: #e0f2fe; color: #0369a1;">پایان‌یافته</span>`;
+                } else {
+                    compDisplay = `<span style="font-size: 11px; color: var(--muted);">شرکت نکرده</span>`;
+                }
+
+                // Action Buttons
+                let actions = '<div style="display: flex; gap: 4px; flex-wrap: wrap;">';
+                if (c.results) {
+                    actions += `<button class="btn-success" style="padding: 5px 8px; font-size: 11px;" onclick="app.viewReport('${c.id}')">📄 کارنامه مربیان</button>`;
+                }
+                if (c.competency_results) {
+                    actions += `<button class="btn-success" style="padding: 5px 8px; font-size: 11px; background: #087e83;" onclick="app.openCompetencyReport('${c.id}')">🎯 کارنامه شایستگی</button>`;
+                }
+                actions += `<button class="btn-danger" style="padding: 4px 7px; font-size: 10px;" onclick="app.resetExam('${c.id}')" title="بازنشانی آزمون مربیان">ریست مربیان</button>`;
+                actions += `<button class="btn-danger" style="padding: 4px 7px; font-size: 10px; background: #c2410c;" onclick="app.resetCompetencyExam('${c.id}')" title="بازنشانی آزمون شایستگی">ریست شایستگی</button>`;
+                actions += '</div>';
 
                 const tr = `<tr>
                     <td><b>${esc(c.first_name)} ${esc(c.last_name)}</b></td>
                     <td><code>${esc(c.username)}</code></td>
-                    <td><span style="font-size: 11px;">${validCount}</span></td>
-                    <td><span style="font-size: 12px; color: #087b8a;">${sjtDisplay}</span></td>
+                    <td>${leaderDisplay}</td>
+                    <td>${compDisplay}</td>
                     <td><span style="font-size: 11px; color: var(--muted);">${esc(c.device_info || 'نامشخص')}</span></td>
-                    <td><span class="status status-${c.status}">${statusMap[c.status] || c.status}</span></td>
-                    <td>${viewBtn}</td>
+                    <td>${actions}</td>
                 </tr>`;
                 adminTbody.innerHTML += tr;
             }
@@ -573,7 +604,8 @@ const app = {
         const total = cList.length;
         const waiting = cList.filter(c => c.status === 'waiting').length;
         const active = cList.filter(c => c.status === 'approved').length;
-        const finished = cList.filter(c => c.status === 'finished').length;
+        const finished = cList.filter(c => c.status === 'finished' || c.results).length;
+        const compFinished = cList.filter(c => c.competency_status === 'finished' || c.competency_results).length;
         const offline = total - waiting - active - finished;
 
         // Receptionist Stats
@@ -582,8 +614,8 @@ const app = {
             recStats.innerHTML = `
                 <div class="stat-card"><h3>کل متقاضیان</h3><h2>${total}</h2></div>
                 <div class="stat-card"><h3>در انتظار پذیرش</h3><h2 style="color: #b45309;">${waiting}</h2></div>
-                <div class="stat-card"><h3>در حال آزمون</h3><h2 style="color: #1e40af;">${active}</h2></div>
-                <div class="stat-card"><h3>پایان‌یافته</h3><h2 style="color: #15803d;">${finished}</h2></div>
+                <div class="stat-card"><h3>اتمام آزمون مربیان</h3><h2 style="color: #15803d;">${finished}</h2></div>
+                <div class="stat-card"><h3>اتمام آزمون شایستگی</h3><h2 style="color: #087e83;">${compFinished}</h2></div>
                 <div class="stat-card"><h3>آفلاین</h3><h2 style="color: #6b7280;">${offline}</h2></div>
             `;
         }
@@ -593,9 +625,9 @@ const app = {
         if (adminStats) {
             adminStats.innerHTML = `
                 <div class="stat-card"><h3>کل ثبت‌نامی‌ها</h3><h2>${total}</h2></div>
-                <div class="stat-card"><h3>اتمام آزمون</h3><h2 style="color: #15803d;">${finished}</h2></div>
+                <div class="stat-card"><h3>پایان آزمون مربیان (۸۰ سؤالی)</h3><h2 style="color: #15803d;">${finished}</h2></div>
+                <div class="stat-card"><h3>پایان آزمون شایستگی (۵۶ سؤالی)</h3><h2 style="color: #087e83;">${compFinished}</h2></div>
                 <div class="stat-card"><h3>در حال آزمون</h3><h2 style="color: #1e40af;">${active}</h2></div>
-                <div class="stat-card"><h3>در انتظار</h3><h2 style="color: #b45309;">${waiting}</h2></div>
             `;
         }
     },
@@ -895,6 +927,522 @@ const app = {
         socket.on('force_logout', () => {
             this.logoutCandidate();
         });
+
+        socket.on('force_logout_competency', () => {
+            this.finishCompetencySession();
+        });
+    },
+
+    // --- Competency Exam State & Methods ---
+    competencyConfig: null,
+    competencyCandidate: null,
+    competencyCandidateId: null,
+    competencyStage: 0,
+    competencyAnswers: { likert: {}, sjt: {} },
+    currentCompetencyReportCand: null,
+
+    loadCompetencyConfig: async function() {
+        if (this.competencyConfig && this.competencyConfig.cats && this.competencyConfig.cats.length) return;
+        try {
+            const res = await fetch('/api/competency/questions');
+            this.competencyConfig = await res.json();
+        } catch (e) {
+            console.error('Error loading competency questions:', e);
+        }
+    },
+
+    checkLocalCompetencyState: async function() {
+        await this.loadCompetencyConfig();
+        const localData = JSON.parse(localStorage.getItem('shahr_competency_candidate') || '{}');
+        if (!localData.id) {
+            this.showCompetencyStep('login');
+            return;
+        }
+
+        this.competencyCandidateId = localData.id;
+        this.competencyCandidate = { id: localData.id, name: localData.name || 'داوطلب', day: localData.day || '' };
+        this.competencyStage = localData.stage || 0;
+        this.competencyAnswers = localData.answers || { likert: {}, sjt: {} };
+
+        if (localData.status === 'finished') {
+            this.showCompetencyStep('done');
+            const receiptEl = document.getElementById('comp-receipt-info');
+            if (receiptEl) receiptEl.innerHTML = `کد داوطلب: <b>${esc(this.competencyCandidateId)}</b>`;
+        } else if (localData.status === 'exam') {
+            this.showCompetencyStep('exam');
+            this.renderCompetencyExam();
+            this.monitorCompetencyLocation();
+        } else if (localData.status === 'confirm') {
+            this.showCompetencyStep('confirm');
+            this.updateCompetencyConfirmDetails();
+        } else {
+            this.showCompetencyStep('login');
+        }
+    },
+
+    showCompetencyStep: function(step) {
+        ['competency-login', 'competency-confirm', 'competency-exam', 'competency-done'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.add('hidden');
+        });
+        const target = document.getElementById(`competency-${step}`);
+        if (target) target.classList.remove('hidden');
+    },
+
+    startCompetencyLogin: async function() {
+        const nidInput = document.getElementById('comp-nid');
+        const passInput = document.getElementById('comp-pass');
+        const errorEl = document.getElementById('comp-login-error');
+
+        const user = norm(nidInput.value);
+        const pass = norm(passInput.value);
+
+        if (!user || !pass) {
+            errorEl.innerText = 'لطفاً کد ملی و رمز عبور پذیرش را وارد فرمایید.';
+            errorEl.style.display = 'block';
+            return;
+        }
+
+        try {
+            const res = await fetch('/api/competency/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({username: user, password: pass, device_info: navigator.userAgent})
+            });
+            const data = await res.json();
+            if (data.success) {
+                errorEl.style.display = 'none';
+                this.competencyCandidateId = data.candidate.id;
+                this.competencyCandidate = data.candidate;
+
+                let localData = JSON.parse(localStorage.getItem('shahr_competency_candidate') || '{}');
+                if (localData.id !== this.competencyCandidateId) {
+                    localData = {
+                        id: this.competencyCandidateId,
+                        name: data.candidate.name,
+                        status: 'confirm',
+                        stage: 0,
+                        answers: { likert: {}, sjt: {} }
+                    };
+                    localStorage.setItem('shahr_competency_candidate', JSON.stringify(localData));
+                }
+                this.competencyAnswers = localData.answers || { likert: {}, sjt: {} };
+                this.competencyStage = localData.stage || 0;
+
+                this.updateCompetencyConfirmDetails();
+                this.showCompetencyStep('confirm');
+            } else {
+                errorEl.innerText = data.error || 'نام کاربری یا رمز عبور اشتباه است.';
+                errorEl.style.display = 'block';
+            }
+        } catch (e) {
+            errorEl.innerText = 'خطای ارتباط با سرور';
+            errorEl.style.display = 'block';
+        }
+    },
+
+    updateCompetencyConfirmDetails: function() {
+        const cand = this.competencyCandidate || {};
+        const nameEl = document.getElementById('comp-person-name');
+        const nidEl = document.getElementById('comp-person-nid');
+        const dayEl = document.getElementById('comp-person-day');
+        if (nameEl) nameEl.innerText = cand.name || `${cand.first_name || ''} ${cand.last_name || ''}`.trim() || '—';
+        if (nidEl) nidEl.innerText = cand.national_id || cand.id || '—';
+        if (dayEl) dayEl.innerText = cand.day || 'روز آزمون';
+    },
+
+    confirmCompetencyStart: async function() {
+        let localData = JSON.parse(localStorage.getItem('shahr_competency_candidate') || '{}');
+        localData.status = 'exam';
+        localStorage.setItem('shahr_competency_candidate', JSON.stringify(localData));
+
+        await this.loadCompetencyConfig();
+        this.showCompetencyStep('exam');
+        this.renderCompetencyExam();
+        this.monitorCompetencyLocation();
+    },
+
+    renderCompetencyExam: function() {
+        const root = document.getElementById('comp-question-area');
+        if (!root || !this.competencyConfig) return;
+
+        const stage = this.competencyStage;
+        const stageCounter = document.getElementById('comp-stage-counter');
+        const stageTitle = document.getElementById('comp-stage-title');
+        const stageSubtitle = document.getElementById('comp-stage-subtitle');
+        const nextBtn = document.getElementById('comp-next-btn');
+        const prevBtn = document.getElementById('comp-prev-btn');
+        const nameEl = document.getElementById('comp-exam-candidate-name');
+        const metaEl = document.getElementById('comp-exam-candidate-meta');
+
+        if (nameEl) nameEl.innerText = (this.competencyCandidate && this.competencyCandidate.name) || 'داوطلب آزمون شایستگی';
+        if (metaEl) metaEl.innerText = `کد ملی داوطلب: ${this.competencyCandidateId || '—'}`;
+
+        if (stageCounter) stageCounter.innerText = `مرحله ${stage + 1} از ۲`;
+        if (stageTitle) stageTitle.innerText = stage === 0 ? 'بخش اول: موقعیت‌های کار فرهنگی (۴۰ سؤال در ۸ حوزه)' : 'بخش دوم: موقعیت‌های تکمیلی (۱۶ سناریوی قضاوت موقعیتی)';
+        if (stageSubtitle) stageSubtitle.innerText = stage === 0 ? 'در هر موقعیت، نزدیک‌ترین اقدام به شیوه تصمیم‌گیری خود را انتخاب کنید. (گزینه‌ها ترجیح عملکردی شما را نشان می‌دهند)' : 'در هر موقعیت، اقدامی را که به احتمال بیشتری انتخاب می‌کنید مشخص نمایید.';
+        if (nextBtn) nextBtn.innerText = stage === 0 ? 'مرحله بعد (سناریوهای تکمیلی) ←' : 'ثبت نهایی پاسخ‌نامه شایستگی ✓';
+        if (prevBtn) prevBtn.style.display = stage === 0 ? 'none' : 'inline-block';
+
+        // Calculate progress
+        const likertCount = Object.keys(this.competencyAnswers.likert || {}).length;
+        const sjtCount = Object.keys(this.competencyAnswers.sjt || {}).length;
+        const totalAnswered = likertCount + sjtCount;
+        const progressPct = Math.round((totalAnswered / 56) * 100);
+        const progEl = document.getElementById('comp-progress-bar');
+        if (progEl) progEl.style.width = `${progressPct}%`;
+
+        let html = '';
+        const letters = ['الف', 'ب', 'ج', 'د'];
+
+        if (stage === 0) {
+            const cats = this.competencyConfig.cats || [];
+            cats.forEach((cat, catIdx) => {
+                html += `<div style="margin: 25px 0 10px; background: #eef7f9; border-right: 4px solid #087e83; padding: 10px 16px; border-radius: 10px;">
+                    <h3 style="margin: 0; color: #103347; font-size: 15px;">حوزه ${catIdx + 1}: ${esc(cat.name)}</h3>
+                </div>`;
+
+                (cat.questions || []).forEach((q, qIdx) => {
+                    const globalIdx = catIdx * 5 + qIdx;
+                    const savedAns = this.competencyAnswers.likert[globalIdx];
+
+                    html += `<div class="portal-question" id="comp-q-likert-${globalIdx}">
+                        <h3>${globalIdx + 1}. ${esc(q.stem)}</h3>
+                        <div class="portal-options comp-4">`;
+
+                    q.options.forEach((opt, optIdx) => {
+                        const checked = savedAns === optIdx ? 'checked' : '';
+                        html += `<label class="portal-option">
+                            <input type="radio" name="comp_l_${globalIdx}" value="${optIdx}" ${checked} onchange="app.setCompetencyAnswer('likert', ${globalIdx}, ${optIdx})">
+                            <span><b>${letters[optIdx]})</b> ${esc(opt)}</span>
+                        </label>`;
+                    });
+
+                    html += `</div></div>`;
+                });
+            });
+        } else {
+            const situations = this.competencyConfig.situations || [];
+            situations.forEach((q, sIdx) => {
+                const globalIdx = sIdx + 41;
+                const savedAns = this.competencyAnswers.sjt[sIdx];
+
+                html += `<div class="portal-question" id="comp-q-sjt-${sIdx}">
+                    <div style="font-size: 11px; color: #087e83; font-weight: bold; margin-bottom: 6px;">حوزه: ${esc(q.area || 'قضاوت موقعیتی')}</div>
+                    <h3>${globalIdx}. ${esc(q.stem)}</h3>
+                    <div class="portal-options comp-4">`;
+
+                q.options.forEach((opt, optIdx) => {
+                    const checked = savedAns === optIdx ? 'checked' : '';
+                    html += `<label class="portal-option">
+                        <input type="radio" name="comp_s_${sIdx}" value="${optIdx}" ${checked} onchange="app.setCompetencyAnswer('sjt', ${sIdx}, ${optIdx})">
+                        <span><b>${letters[optIdx]})</b> ${esc(opt)}</span>
+                    </label>`;
+                });
+
+                html += `</div></div>`;
+            });
+        }
+
+        root.innerHTML = html;
+        const errEl = document.getElementById('comp-exam-error');
+        if (errEl) errEl.style.display = 'none';
+    },
+
+    setCompetencyAnswer: function(group, idx, value) {
+        if (!this.competencyAnswers[group]) this.competencyAnswers[group] = {};
+        this.competencyAnswers[group][idx] = Number(value);
+
+        let localData = JSON.parse(localStorage.getItem('shahr_competency_candidate') || '{}');
+        localData.answers = this.competencyAnswers;
+        localStorage.setItem('shahr_competency_candidate', JSON.stringify(localData));
+
+        // Update progress
+        const likertCount = Object.keys(this.competencyAnswers.likert || {}).length;
+        const sjtCount = Object.keys(this.competencyAnswers.sjt || {}).length;
+        const progressPct = Math.round(((likertCount + sjtCount) / 56) * 100);
+        const progEl = document.getElementById('comp-progress-bar');
+        if (progEl) progEl.style.width = `${progressPct}%`;
+    },
+
+    nextCompetencyStage: function() {
+        const errEl = document.getElementById('comp-exam-error');
+
+        if (this.competencyStage === 0) {
+            // Validate 40 Likert questions
+            const missing = [];
+            for (let i = 0; i < 40; i++) {
+                if (this.competencyAnswers.likert[i] === undefined || this.competencyAnswers.likert[i] === null) {
+                    missing.push(i);
+                }
+            }
+            if (missing.length > 0) {
+                if (errEl) {
+                    errEl.innerText = `لطفاً پیش از رفتن به مرحله بعد، به تمام سؤالات پاسخ دهید. (${missing.length} سؤال بدون پاسخ باقی مانده است).`;
+                    errEl.style.display = 'block';
+                }
+                const firstMiss = document.getElementById(`comp-q-likert-${missing[0]}`);
+                if (firstMiss) firstMiss.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+
+            this.competencyStage = 1;
+            let localData = JSON.parse(localStorage.getItem('shahr_competency_candidate') || '{}');
+            localData.stage = 1;
+            localStorage.setItem('shahr_competency_candidate', JSON.stringify(localData));
+
+            this.renderCompetencyExam();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            // Validate 16 SJT situations
+            const missing = [];
+            for (let i = 0; i < 16; i++) {
+                if (this.competencyAnswers.sjt[i] === undefined || this.competencyAnswers.sjt[i] === null) {
+                    missing.push(i);
+                }
+            }
+            if (missing.length > 0) {
+                if (errEl) {
+                    errEl.innerText = `لطفاً پیش از ثبت نهایی، به تمام سناریوها پاسخ دهید. (${missing.length} سناریو بدون پاسخ باقی مانده است).`;
+                    errEl.style.display = 'block';
+                }
+                const firstMiss = document.getElementById(`comp-q-sjt-${missing[0]}`);
+                if (firstMiss) firstMiss.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+
+            if (confirm('آیا از ثبت نهایی پاسخ‌نامه آزمون شایستگی و ارسال به ارزیاب اطمینان دارید؟')) {
+                this.submitCompetencyExam();
+            }
+        }
+    },
+
+    prevCompetencyStage: function() {
+        if (this.competencyStage > 0) {
+            this.competencyStage = 0;
+            let localData = JSON.parse(localStorage.getItem('shahr_competency_candidate') || '{}');
+            localData.stage = 0;
+            localStorage.setItem('shahr_competency_candidate', JSON.stringify(localData));
+            this.renderCompetencyExam();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+            this.showCompetencyStep('confirm');
+        }
+    },
+
+    submitCompetencyExam: async function() {
+        try {
+            const res = await fetch('/api/competency/submit_exam', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    candidate_id: this.competencyCandidateId,
+                    answers: this.competencyAnswers
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                let localData = JSON.parse(localStorage.getItem('shahr_competency_candidate') || '{}');
+                localData.status = 'finished';
+                localStorage.setItem('shahr_competency_candidate', JSON.stringify(localData));
+
+                const receiptEl = document.getElementById('comp-receipt-info');
+                if (receiptEl) receiptEl.innerHTML = `کد داوطلب: <b>${esc(this.competencyCandidateId)}</b>`;
+
+                this.showCompetencyStep('done');
+            } else {
+                alert(data.error || 'خطا در ثبت نهایی آزمون شایستگی');
+            }
+        } catch (e) {
+            alert('خطای اتصال به سرور. پاسخ‌های شما ذخیره محلی شده است.');
+        }
+    },
+
+    finishCompetencySession: function() {
+        localStorage.removeItem('shahr_competency_candidate');
+        this.competencyCandidateId = null;
+        this.competencyCandidate = null;
+        this.competencyStage = 0;
+        this.competencyAnswers = { likert: {}, sjt: {} };
+        this.setRole('');
+    },
+
+    monitorCompetencyLocation: function() {
+        const statusEl = document.getElementById('comp-location-status');
+        if (!statusEl) return;
+        const targetLat = 35.7412;
+        const targetLon = 51.4428;
+
+        if ('geolocation' in navigator) {
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lon = pos.coords.longitude;
+                    const R = 6371;
+                    const dLat = (lat - targetLat) * Math.PI / 180;
+                    const dLon = (lon - targetLon) * Math.PI / 180;
+                    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                              Math.cos(targetLat * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+                              Math.sin(dLon/2) * Math.sin(dLon/2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                    const distKm = R * c;
+
+                    if (distKm <= 12) {
+                        statusEl.className = 'location-status-badge';
+                        statusEl.innerHTML = '<span style="font-size: 8px;">🟢</span> موقعیت مکانی تأیید شد: در محدوده مجاز فرهنگسرای اندیشه';
+                    } else {
+                        statusEl.className = 'location-status-badge danger';
+                        statusEl.innerHTML = `<span style="font-size: 8px;">⛔</span> هشدار تقلب: خارج از فرهنگسرای اندیشه (${distKm.toFixed(1)} کیلومتر)`;
+                        alert('هشدار امنیتی: موقعیت مکانی شما خارج از محدوده فرهنگسرای اندیشه است. هرگونه خروج از محدوده موجب ابطال قطعی آزمون شایستگی خواهد شد.');
+                    }
+                },
+                (err) => {
+                    statusEl.className = 'location-status-badge';
+                    statusEl.innerHTML = '<span style="font-size: 8px;">📍</span> پایش مکانی شبکه فعال در فرهنگسرای اندیشه';
+                },
+                { enableHighAccuracy: true, timeout: 7000 }
+            );
+        }
+    },
+
+    openCompetencyReport: function(candId) {
+        const cand = (this.lastCandidateList || []).find(x => x.id === candId);
+        if (!cand || !cand.competency_results) {
+            alert('کارنامه شایستگی برای این داوطلب ثبت نشده است.');
+            return;
+        }
+        this.currentCompetencyReportCand = cand;
+        const html = this.renderCompetencyReportHTML(cand, cand.competency_results);
+        const container = document.getElementById('competency-report-body');
+        if (container) container.innerHTML = html;
+        document.getElementById('competency-report-modal').classList.remove('hidden');
+    },
+
+    closeCompetencyReport: function() {
+        document.getElementById('competency-report-modal').classList.add('hidden');
+        this.currentCompetencyReportCand = null;
+    },
+
+    printCompetencyReport: function() {
+        window.print();
+    },
+
+    exportCompetencyCSV: function() {
+        window.location.href = '/api/competency/export_csv';
+    },
+
+    saveCandidateNotes: async function(candId, notes) {
+        try {
+            await fetch('/api/candidate_notes', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({candidate_id: candId, notes: notes})
+            });
+        } catch (e) {
+            console.error('Error saving notes:', e);
+        }
+    },
+
+    resetCompetencyExam: function(candId) {
+        if (confirm(`آیا از بازنشانی آزمون شایستگی داوطلب با کد ${candId} اطمینان دارید؟ نتایج پیشین بایگانی خواهد شد.`)) {
+            socket.emit('reset_competency_exam', { candidate_id: candId });
+        }
+    },
+
+    renderCompetencyReportHTML: function(cand, cres) {
+        const total = cres.total != null ? `${Number(cres.total).toFixed(1)}٪` : '—';
+        const self = cres.self != null ? `${Number(cres.self).toFixed(1)}٪` : '—';
+        const sjt = cres.sjt != null ? `${Number(cres.sjt).toFixed(1)}٪` : '—';
+        const sjtSum = cres.sjt_sum != null ? `${cres.sjt_sum} از ۴۸` : '—';
+
+        const areas = cres.areas || [];
+        const areasHTML = areas.map(a => {
+            const val = a.value != null ? Number(a.value).toFixed(1) : 0;
+            return `<tr>
+                <td><b>${esc(a.name)}</b></td>
+                <td style="color: #087e83; font-weight: bold;">${a.sum_points} از ۱۵ (${val}٪)</td>
+                <td>
+                    <div class="comp-bar-container">
+                        <div class="comp-bar-fill" style="width: ${val}%;"></div>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+
+        return `
+        <div class="comp-report-page">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #087e83; padding-bottom: 15px; margin-bottom: 20px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <img src="/static/logo1.svg" alt="لوگو ۱" style="height: 48px;">
+                    <img src="/static/logo2.svg" alt="لوگو ۲" style="height: 48px;">
+                    <div>
+                        <h2 style="margin: 0; color: #103347; font-size: 19px;">گزارش فردی ارزیابی شایستگی‌های عمومی و شغلی</h2>
+                        <span style="font-size: 12px; color: #627582;">مؤسسه آموزش شهر • آزمون ۵۶ سؤالی قضاوت موقعیتی (سؤالات غیرمستقیم)</span>
+                    </div>
+                </div>
+                <div style="text-align: left; font-size: 12px; color: #627582;">
+                    <div>نسخه استاندارد ۱.۰</div>
+                    <div style="font-family: monospace;">${new Date().toLocaleDateString('fa-IR')}</div>
+                </div>
+            </div>
+
+            <!-- Candidate Identity Info -->
+            <div style="background: #f7fafc; border: 1px solid #dbe6ec; border-radius: 12px; padding: 14px 18px; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 13.5px; margin-bottom: 20px;">
+                <div>نام و نام خانوادگی: <b style="color: #103347;">${esc(cand.first_name)} ${esc(cand.last_name)}</b></div>
+                <div>کد ملی: <code style="font-size: 14px; color: #087e83;">${esc(cand.username || cand.national_id)}</code></div>
+                <div>گروه / روز: <b>${esc(cand.day || 'روز آزمون')}</b></div>
+                <div>عنوان ارزیابی: <b>نیروی فرهنگی و اجتماعی</b></div>
+            </div>
+
+            <!-- Key Metric Cards -->
+            <div class="comp-metric-grid">
+                <div class="comp-metric-card" style="border-right: 4px solid #087e83;">
+                    <span class="label">شاخص ترکیبی کل شایستگی (وزن ۷۰٪ و ۳۰٪)</span>
+                    <span class="val">${total}</span>
+                    <span class="hint">ترکیب ۸ حوزه خودگزارشی + ۱۶ سناریوی موقعیتی</span>
+                </div>
+                <div class="comp-metric-card" style="border-right: 4px solid #2563eb;">
+                    <span class="label">قضاوت موقعیتی بخش اول (خودگزارشی ۸ حوزه)</span>
+                    <span class="val" style="color: #2563eb;">${self}</span>
+                    <span class="hint">میانگین وزنی ۴۰ موقعیت کار فرهنگی</span>
+                </div>
+                <div class="comp-metric-card" style="border-right: 4px solid #d97706;">
+                    <span class="label">قضاوت موقعیتی بخش دوم (۱۶ سناریوی تکمیلی)</span>
+                    <span class="val" style="color: #d97706;">${sjt}</span>
+                    <span class="hint">امتیاز خام: ${sjtSum}</span>
+                </div>
+            </div>
+
+            <!-- 8 Areas Table -->
+            <h3 style="margin: 24px 0 10px; color: #103347; font-size: 16px;">هشت حوزه قضاوت موقعیتی (بخش اول آزمون - ۴۰ سؤال)</h3>
+            <table class="comp-table">
+                <thead>
+                    <tr>
+                        <th style="width: 32%;">حوزه شایستگی</th>
+                        <th style="width: 28%;">امتیاز و درصد</th>
+                        <th style="width: 40%;">نمودار نسبت شایستگی</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${areasHTML}
+                </tbody>
+            </table>
+
+            <!-- Evaluator Notes -->
+            <div style="margin-top: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h3 style="margin: 0; color: #103347; font-size: 15px;">یادداشت‌های ارزیاب و موضوعات مصاحبه تکمیلی</h3>
+                    <span style="font-size: 11px; color: #627582;">(تغییرات به صورت خودکار ذخیره می‌شود)</span>
+                </div>
+                <textarea class="comp-notes-textarea" id="comp-evaluator-notes" placeholder="ملاحظات تشخیصی، حوزه‌های نیازمند تعمیق در مصاحبه حضوری و نکات رفتاری..." oninput="app.saveCandidateNotes('${cand.id}', this.value)">${esc(cand.notes || '')}</textarea>
+            </div>
+
+            <!-- Guidance Notice -->
+            <div style="background: #eef7fb; border-right: 4px solid #087e83; border-radius: 8px; padding: 12px 16px; margin-top: 20px; font-size: 11.5px; color: #203c4b; line-height: 1.8;">
+                ⚠️ <b>تفسیر حرفه‌ای نتایج:</b> امتیازهای ارزیابی شایستگی جنبه توصیفی و اکتشافی دارند و به تنهایی ملاک قطعی گزینش نیستند. این کارنامه مبنای هدایت مصاحبه ساختاریافته و تدوین سناریوهای عمیق سنجش عملکردی می‌باشد.
+            </div>
+        </div>
+        `;
     }
 };
 
